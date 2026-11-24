@@ -1,39 +1,51 @@
 # NUgraph — progress tracker
 
-Live status of the build. Full plan: `~/.claude/plans/i-want-to-extract-humble-cocke.md`.
+Live status of the build.
 
 _Last updated: 2026-06-23_
+
+## Status: core product complete ✅
+Both goals work end-to-end through a web UI: **relation graph** (Neo4j) + **search by
+description** (Qdrant). The synopsis backfill keeps running in the background and makes search
+sharper over time.
 
 ## Milestones
 
 | # | Milestone | Status | Notes |
 |---|-----------|--------|-------|
-| M0 | Project scaffold + `uv` (Python 3.12) | ✅ done | `src/nugraph/`, `pyproject.toml`, `config.py` |
-| —  | Install Neo4j + Qdrant (native, systemd) | ✅ done | both services `active` |
-| M1 | Load novel nodes into Neo4j | ✅ done | **24,639** `:Novel` nodes |
-| M2 | Build relationship edges | ✅ done | **~140k edges**: RECOMMENDS 60,155 · SIMILAR 39,967 · SAME_AUTHOR 24,281 · CO_LISTED 11,971 · RELATED 3,940 |
-| M3 | Synopsis scraper (polite/cached/resumable) | 🟢 running | Built + validated (5/5 sample ok). **Full backfill running in background** (~24.6k novels, ~6–15s each). |
-| M4 | Embed synopses → Qdrant + semantic search | ✅ done | 24,639 indexed; strong results even on tag/genre fallback. Re-run `build_search.py` to fold in synopses as they scrape. |
-| M5 | FastAPI backend (search + graph endpoints) | ⬜ next | |
-| M6 | Vite + Cytoscape.js frontend | ⬜ todo | |
-| M7 | (future) full live scraper **+ recommendation-list membership** | ⬜ deferred | See "Recommendations" note below. |
+| M0 | Scaffold + `uv` (Python 3.12) | ✅ done | |
+| —  | Install Neo4j + Qdrant (native systemd) | ✅ done | |
+| M1 | Novel nodes → Neo4j | ✅ done | 24,639 `:Novel` nodes |
+| M2 | Relationship edges | ✅ done | ~140k: RECOMMENDS 60,155, SIMILAR 39,967, SAME_AUTHOR 24,281, CO_LISTED 11,971, RELATED 3,940 |
+| M3 | Synopsis scraper | 🟢 running | Resumable backfill in background (~24.6k novels, polite pace). |
+| M4 | Semantic search (Qdrant) | ✅ done | 24,639 indexed; re-run `build_search.py` to fold in new synopses |
+| M5 | FastAPI backend | ✅ done | search / novel / graph-neighbors / facets — on **:8001** |
+| M6 | React + Vite + Cytoscape.js UI | ✅ done | on **:5180** |
+| M7 | (future) full live scraper + recommendation-list membership | ⬜ deferred | see note below |
 
-## Recommendations & recommendation lists (investigated 2026-06-23)
-- **Recommendation chain — DONE.** NU caps on-page recommendations at 6; we have them as
-  `RECOMMENDS` edges. Chains are just multi-hop traversal, e.g.:
-  `MATCH p=(a:Novel {id:5})-[:RECOMMENDS*1..3]->(b) RETURN p`.
-- **Recommendation-list membership — deferred (M7).** It's AJAX-loaded; the simple URL routes
-  don't work (`?p=<id>` → a novel; `series-finder?list=<id>` ignores the filter and returns the
-  full catalog). Getting it needs headless-browser endpoint discovery + a separate ~12k-page
-  crawl. We keep the **partial** `CO_LISTED` (11,971 edges from the dataset's capped 5 lists/novel)
-  for now. Decision: build the core search pipeline first.
+## How to run (all local)
 
-## M3 scraper facts (settled)
-- Fetch `https://www.novelupdates.com/?p=<id>`; synopsis is `div#editdescription`. Synopsis only.
-- `cloudscraper` (Cloudflare-aware); long randomized delays; exp. backoff on 403/429/503; resumable.
-- Store: `data/processed/synopses.sqlite` (status: ok / empty / notfound / error). M4 reads `ok` rows.
+| Service | Command | URL |
+|---|---|---|
+| Neo4j (graph) | `systemctl status neo4j` (auto-starts) | http://localhost:7474 |
+| Qdrant (vectors) | `systemctl status qdrant` (auto-starts) | http://localhost:6333/dashboard |
+| API backend | `uv run uvicorn nugraph.api.main:app --port 8001` | http://localhost:8001/docs |
+| Frontend | `cd frontend && npm run dev` | http://localhost:5180 |
 
-## Useful commands
-- Scrape status: `uv run python -c "from nugraph.ingest import synopsis_store as s; print(s.stats())"`
-- Resume scrape:  `uv run python scripts/scrape_synopses.py`
-- Neo4j Browser:  http://localhost:7474   ·   Qdrant: http://localhost:6333/dashboard
+> NUgraph uses ports **8001** and **5180** so it can run next to other local apps on the default ports.
+
+## Pipeline scripts
+- `scripts/load_graph.py`   — M1: dataset → Neo4j nodes
+- `scripts/build_edges.py`  — M2: build all edges
+- `scripts/scrape_synopses.py` — M3: synopsis backfill (resumable; `--sample N` for a test)
+- `scripts/build_search.py` — M4: (re)build the Qdrant index (re-run to fold in new synopses)
+
+## Recommendations & lists (decided 2026-06-23)
+- **Chain — done**: multi-hop over `RECOMMENDS` (NU caps recs at 6/page; we have them).
+- **Rec-list membership — deferred (M7)**: AJAX-loaded; needs headless-browser endpoint discovery
+  + a ~12k-page crawl. We keep the partial `CO_LISTED` for now.
+
+## Next steps
+1. Let the synopsis scrape finish, then re-run `build_search.py` to upgrade tag-based vectors to
+   real-synopsis vectors (the `has_synopsis` flag flips true).
+2. (Optional, M7) recommendation-list membership; full live refresh + scheduling.
