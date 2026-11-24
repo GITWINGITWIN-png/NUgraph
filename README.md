@@ -14,6 +14,19 @@ Data is **dataset-first**: bulk metadata + relations come from the public
 [`shaido987/novel-dataset`](https://github.com/shaido987/novel-dataset) (~24.6k novels);
 a polite, cached scraper backfills the one missing field — the synopsis text.
 
+## Data and site rules
+
+- **The dataset** has no licence file, so this repo never copies it: the loader
+  (`src/nugraph/ingest/dataset.py`) downloads it when you run it. No novel data, synopses or
+  caches are committed; the data folders are ignored.
+- **The synopsis scraper** (`scripts/scrape_synopses.py`) reads one field, `div#editdescription`,
+  from each series page on novelupdates.com. It waits a random 6 to 15 seconds between requests,
+  backs off on 403, 429 and 503, and can stop and resume without fetching a page twice. It uses
+  `cloudscraper` because the site sits behind Cloudflare.
+- **Site rules, checked on 24 November 2026:** robots.txt does not block the series pages, and the
+  [Terms of Service](https://www.novelupdates.com/terms-of-service/) contain no clause against
+  automated reading. Synopses stay on your machine. Check the rules again before you run it.
+
 ## Stack
 
 | Concern        | Choice                                                |
@@ -51,5 +64,6 @@ sudo rm -rf /opt/qdrant /var/lib/qdrant
 sudo systemctl daemon-reload
 ```
 
-See the full implementation plan at
-`~/.claude/plans/i-want-to-extract-humble-cocke.md`.
+---
+
+Built with help from AI coding assistants.
